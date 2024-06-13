@@ -1,0 +1,111 @@
+#
+#  Automatização em buscas de strings em arquivos de Excel, pudendo ser alterado para outras bases de dados,
+# podendo ser incrementado com REGEX e prever e pesquisar automaticamente variações de nomes (outro programa, fora deste)
+#
+import openpyxl
+import re
+import time
+import datetime
+
+def fazer_pesquisa():
+    filename = '/content/drive/MyDrive/01. DEV - MP - PESQUISA/Planilhas de pesquisa PJs de Infância.xlsx'
+
+    while True:
+        # Abra o arquivo e obtenha uma lista de nomes de abas
+        workbook = openpyxl.load_workbook(filename)
+        sheet_names = workbook.sheetnames
+
+        # Pergunte ao usuário a string a ser pesquisada
+        search_string = input('Digite o nome a ser pesquisado: ')
+
+        # Compile os padrões de regex
+        pattern = re.compile(search_string, re.IGNORECASE)
+        specific_pattern = re.compile(r'2021\.00257144')
+
+        # Variável para armazenar o nome da aba onde a string é encontrada
+        found_in_sheet = None
+
+        # Variável para armazenar as contagens de ocorrência
+        contador = 0
+
+        # Lista para armazenar os resultados
+        resultados = []
+
+        # Loop através de todas as abas
+        for sheet_index, sheet_name in enumerate(sheet_names):
+            sheet = workbook[sheet_name]
+            print(f"Pesquisando na aba \033[1m{sheet_index + 1}\033[0m: \033[1m{sheet_name}\033[0m")
+
+            # Loop através das linhas da aba atual
+            for row_index, row in enumerate(sheet.iter_rows(min_row=2, min_col=3, max_col=7, values_only=True), start=2):
+                # Verifica se estamos na quinta aba
+                #if sheet_index == 4:
+                #   print(f"Conteúdo da linha na quinta aba, linha {row_index}: {row}")
+
+                # Converte o conteúdo da célula em strings apropriadas
+                row_contents = []
+                for col in row:
+                    if isinstance(col, datetime.datetime):
+                        col_str = col.strftime("%Y-%m-%d")
+                    elif col is None:
+                        col_str = ""
+                    else:
+                        col_str = str(col)
+                    row_contents.append(col_str)
+
+                # Verifica se a string de pesquisa ou o padrão específico está presente em qualquer célula da linha
+                for cell_content in row_contents:
+                    if pattern.search(cell_content) or specific_pattern.search(cell_content):
+                        contador += 1
+                        # Armazena o nome da aba onde a string é encontrada
+                        found_in_sheet = sheet_name
+                        # Adiciona o resultado à lista de resultados
+                        resultados.append({
+                            'sheet': sheet_name,
+                            'line': row_index,
+                            'excerpt': cell_content[:50],  # Parte do trecho encontrado (primeiros 50 caracteres)
+                            'full_row': row_contents  # Linha completa onde o termo foi encontrado
+                        })
+                        # Imprime o número da linha e o conteúdo das outras colunas separados por '|'
+                        print(f"String encontrada na aba '{sheet_name}', linha {row_index}: {' | '.join(row_contents)}")
+                        break  # Se a string for encontrada, não precisa procurar mais nesta linha
+
+            # Pausa de 1 segundos entre as pesquisas de abas
+            time.sleep(1)
+
+        # Se a string foi encontrada, imprima o nome da aba onde foi encontrada
+        if found_in_sheet:
+            print(f"A string foi encontrada na aba '{found_in_sheet}'.")
+        else:
+            print("A string não foi encontrada em nenhuma aba.")
+
+        print("\n" + "*" * 40)
+        #print(f"Quantidade de ocorrências: {contador} do termo {search_string}")
+        print(f"Quantidade de ocorrências do termo {search_string}: {contador}")
+        # Imprime os resultados detalhados
+        if resultados:
+            print("\nResultados encontrados:")
+            for resultado in resultados:
+                # Verifica se o padrão específico está presente
+                specific_match = specific_pattern.search(' '.join(resultado['full_row']))
+                specific_info = f"2021.00257144 encontrado" if specific_match else ""
+                # Inclui a variável específica no início do resultado
+                print(f"{specific_info} | **** Aba: \033[1m{resultado['sheet']}\033[0m, Linha: {resultado['line']}, Trecho: {resultado['excerpt']}")
+                print(f"\nLinha completa: {' | '.join(resultado['full_row'])}")
+        else:
+            print("Nenhum resultado encontrado.")
+
+        # Feche o arquivo
+        workbook.close()
+
+        # Perguntar ao usuário se deseja realizar outra pesquisa
+        resposta = input("Deseja pesquisar novamente? (SIM/NÃO): ").strip().upper()
+        if resposta == 'NÃO':
+            print("Encerrando a rotina de pesquisa.")
+            break
+        elif resposta != 'SIM':
+            print("Resposta inválida. Encerrando a rotina de pesquisa.")
+            break
+
+# Chamar a função para iniciar a pesquisa
+fazer_pesquisa()
