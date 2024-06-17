@@ -1,0 +1,89 @@
+import openpyxl
+import re
+import datetime
+
+def converter_celula_para_string(celula):
+    """Converte o conteúdo de uma célula para string."""
+    if isinstance(celula, datetime.datetime):
+        return celula.strftime("%Y-%m-%d")
+    elif celula is None:
+        return ""
+    else:
+        return str(celula)
+
+def extrair_mprj(concatenated_row):
+    """Extrai o MPRJ do conteúdo da linha concatenada usando uma expressão regular."""
+    mprj_pattern = re.compile(r'\d{4}\.?\d{8}')
+    match = mprj_pattern.search(concatenated_row)
+    return match.group(0) if match else "Não encontrado"
+
+def pesquisar_em_aba(sheet, pattern):
+    """Pesquisa a string em uma aba e retorna os resultados."""
+    resultados = []
+    contador = 0
+
+    for row_index, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        row_contents = [converter_celula_para_string(col) for col in row]
+        concatenated_row = ' '.join(row_contents)
+
+        if pattern.search(concatenated_row):
+            contador += 1
+            mprj = extrair_mprj(concatenated_row)
+            resultados.append({
+                'sheet': sheet.title,
+                'line': row_index,
+                'mprj': mprj,
+                'excerpt': concatenated_row[:50],
+                'full_row': row_contents
+            })
+            print(f"String encontrada na aba '{sheet.title}', linha {row_index}: {' | '.join(row_contents)}")
+
+    return resultados, contador
+
+def fazer_pesquisa():
+    filename = '/content/drive/MyDrive/01. DEV - MP - PESQUISA/Planilhas de pesquisa PJs de Infância.xlsx'
+
+    try:
+        while True:
+            workbook = openpyxl.load_workbook(filename)
+            sheet_names = workbook.sheetnames
+            search_string = input('Digite o nome a ser pesquisado: ')
+            pattern = re.compile(search_string, re.IGNORECASE)
+
+            resultados_totais = []
+            contador_total = 0
+
+            for sheet_index, sheet_name in enumerate(sheet_names):
+                sheet = workbook[sheet_name]
+                print(f"Pesquisando na aba \033[1m{sheet_index + 1}\033[0m: \033[1m{sheet_name}\033[0m")
+
+                resultados, contador = pesquisar_em_aba(sheet, pattern)
+                resultados_totais.extend(resultados)
+                contador_total += contador
+
+            if resultados_totais:
+                print("\nResultados encontrados:")
+                for resultado in resultados_totais:
+                    print(f"Aba: \033[1m{resultado['sheet']}\033[0m, Linha: {resultado['line']}, MPRJ: {resultado['mprj']}, Trecho: {resultado['excerpt']}")
+                    print(f"Linha completa: {' | '.join(resultado['full_row'])}")
+            else:
+                print("Nenhum resultado encontrado.")
+                print("\nSUGESTÃO DE INFORMAÇÃO: Informo que não foi localizado processo nem procedimentos/expedientes em nome das crianças/adolescentes "
+                      f"{search_string.upper()} no âmbito da atribuição das Promotorias de Infância e Juventude Volta Redonda.\nNesta, abro vista dos autos.")
+
+            print(f"\n{'*' * 40}\nQuantidade de ocorrências: {contador_total} do termo {search_string}")
+
+            workbook.close()
+
+            resposta = input("Deseja pesquisar novamente? (SIM/NÃO): ").strip().upper()
+            if resposta == 'NÃO':
+                print("Encerrando a rotina de pesquisa.")
+                break
+            elif resposta != 'SIM':
+                print("Resposta inválida. Encerrando a rotina de pesquisa.")
+                break
+
+    except Exception as e:
+        print(f"Ocorreu um erro: {e}")
+
+fazer_pesquisa()
