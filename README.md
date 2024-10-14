@@ -1,3 +1,7 @@
+**AUTOMATIZAÇÃO DE PESQUISAS EM BASE DE DADOS - ARQUIVOS EM EXCEL**
+Utilização de Regex; Loops, bibliotecas
+versão final com esboço de interface gráfica
+
 Explicação Detalhada do Código 
 
 **1 - Importações Necessárias:**
