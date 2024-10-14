@@ -1,0 +1,192 @@
+import openpyxl
+import re
+import datetime
+import time
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import threading
+
+def converter_celula_para_string(celula):
+    """Converte o conteúdo de uma célula para string."""
+    if isinstance(celula, datetime.datetime):
+        return celula.strftime("%Y-%m-%d")
+    elif celula is None:
+        return ""
+    else:
+        return str(celula)
+
+def extrair_mprj(concatenated_row):
+    """Extrai o MPRJ do conteúdo da linha concatenada usando uma expressão regular."""
+    mprj_pattern = re.compile(r'\d{4}\.?\d{8}')
+    match = mprj_pattern.search(concatenated_row)
+    return match.group(0) if match else "Não encontrado"
+
+def pesquisar_em_aba(sheet, pattern, abas_encontradas, resultados_tree, nome_pesquisa):
+    """Pesquisa a string em uma aba e atualiza os resultados na Treeview."""
+    for row_index, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        row_contents = [converter_celula_para_string(col) for col in row]
+        concatenated_row = ' '.join(row_contents)
+
+        if pattern.search(concatenated_row):
+            mprj = extrair_mprj(concatenated_row)
+            if sheet.title not in abas_encontradas:
+                abas_encontradas.append(sheet.title)
+            # Inserir resultado na Treeview
+            resultados_tree.insert("", "end", values=(
+                nome_pesquisa,
+                sheet.title,
+                row_index,
+                mprj,
+                concatenated_row[:50],
+                ' | '.join(row_contents)
+            ))
+
+def realizar_pesquisa(filename, nomes, resultados_tree):
+    """Função principal para realizar a pesquisa e atualizar a interface."""
+    try:
+        workbook = openpyxl.load_workbook(filename, data_only=True)
+        sheet_names = workbook.sheetnames
+
+        abas_encontradas = []
+
+        for nome in nomes:
+            pattern = re.compile(nome, re.IGNORECASE)
+            for sheet_name in sheet_names:
+                sheet = workbook[sheet_name]
+                pesquisar_em_aba(sheet, pattern, abas_encontradas, resultados_tree, nome)
+
+        workbook.close()
+
+        if not abas_encontradas:
+            messagebox.showinfo("Pesquisa Concluída", "Nenhuma aba com resultados foi encontrada.")
+        else:
+            messagebox.showinfo("Pesquisa Concluída", "A pesquisa foi concluída com sucesso.")
+
+    except Exception as e:
+        messagebox.showerror("Erro", f"Ocorreu um erro durante a pesquisa:\n{e}")
+
+def iniciar_pesquisa(filename, nomes, resultados_tree, btn_pesquisar):
+    """Inicia a pesquisa em uma thread separada para não travar a interface."""
+    btn_pesquisar.config(state=tk.DISABLED)
+    resultados_tree.delete(*resultados_tree.get_children())  # Limpa resultados anteriores
+
+    thread = threading.Thread(target=realizar_pesquisa, args=(filename, nomes, resultados_tree))
+    thread.start()
+    thread.join()
+    btn_pesquisar.config(state=tk.NORMAL)
+
+def selecionar_arquivo(entry_arquivo):
+    """Abre uma janela para selecionar o arquivo Excel e atualiza a entrada."""
+    filename = filedialog.askopenfilename(
+        title="Selecione o arquivo Excel",
+        filetypes=[("Excel files", "*.xlsx *.xls")]
+    )
+    if filename:
+        entry_arquivo.delete(0, tk.END)
+        entry_arquivo.insert(0, filename)
+
+def obter_nomes(input_nomes):
+    """Obtém e processa os nomes a serem pesquisados."""
+    search_string = input_nomes.get()
+    nomes = re.split(r'[;,]', search_string)  # Divide a string por ; ou ,
+    nomes = [nome.strip() for nome in nomes if nome.strip()]  # Remove espaços em branco
+    return nomes
+
+def salvar_resultados(resultados_tree):
+    """Salva os resultados da Treeview em um arquivo CSV."""
+    try:
+        import csv
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="Salvar resultados como"
+        )
+        if file_path:
+            with open(file_path, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                # Escrever cabeçalhos
+                writer.writerow(["Nome", "Aba", "Linha", "MPRJ", "Trecho", "Linha Completa"])
+                # Escrever dados
+                for row_id in resultados_tree.get_children():
+                    row = resultados_tree.item(row_id)['values']
+                    writer.writerow(row)
+            messagebox.showinfo("Salvo", f"Resultados salvos com sucesso em:\n{file_path}")
+    except Exception as e:
+        messagebox.showerror("Erro", f"Ocorreu um erro ao salvar os resultados:\n{e}")
+
+def criar_interface():
+    """Cria e executa a interface gráfica."""
+    root = tk.Tk()
+    root.title("Pesquisa em Lote em Planilha Excel")
+    root.geometry("1000x600")
+    root.resizable(False, False)
+
+    # Frame para seleção de arquivo
+    frame_arquivo = tk.LabelFrame(root, text="Seleção do Arquivo Excel", padx=10, pady=10)
+    frame_arquivo.pack(fill="x", padx=10, pady=5)
+
+    lbl_arquivo = tk.Label(frame_arquivo, text="Arquivo:")
+    lbl_arquivo.pack(side="left")
+
+    entry_arquivo = tk.Entry(frame_arquivo, width=80)
+    entry_arquivo.pack(side="left", padx=5)
+
+    btn_browse = tk.Button(frame_arquivo, text="Selecionar", command=lambda: selecionar_arquivo(entry_arquivo))
+    btn_browse.pack(side="left", padx=5)
+
+    # Frame para entrada de nomes
+    frame_nomes = tk.LabelFrame(root, text="Termos de Pesquisa", padx=10, pady=10)
+    frame_nomes.pack(fill="x", padx=10, pady=5)
+
+    lbl_nomes = tk.Label(frame_nomes, text="Nomes (separados por ; ou ,):")
+    lbl_nomes.pack(side="left")
+
+    input_nomes = tk.Entry(frame_nomes, width=80)
+    input_nomes.pack(side="left", padx=5)
+
+    # Frame para botões
+    frame_botoes = tk.Frame(root, padx=10, pady=10)
+    frame_botoes.pack(fill="x")
+
+    btn_pesquisar = tk.Button(frame_botoes, text="Pesquisar", width=15, command=lambda: iniciar_pesquisa(
+        entry_arquivo.get(),
+        obter_nomes(input_nomes),
+        resultados_tree,
+        btn_pesquisar
+    ))
+    btn_pesquisar.pack(side="left", padx=5)
+
+    btn_salvar = tk.Button(frame_botoes, text="Salvar Resultados", width=20, command=lambda: salvar_resultados(resultados_tree))
+    btn_salvar.pack(side="left", padx=5)
+
+    btn_limpar = tk.Button(frame_botoes, text="Limpar Resultados", width=20, command=lambda: resultados_tree.delete(*resultados_tree.get_children()))
+    btn_limpar.pack(side="left", padx=5)
+
+    # Frame para resultados
+    frame_resultados = tk.LabelFrame(root, text="Resultados da Pesquisa", padx=10, pady=10)
+    frame_resultados.pack(fill="both", expand=True, padx=10, pady=5)
+
+    # Configurar Treeview
+    columns = ("Nome", "Aba", "Linha", "MPRJ", "Trecho", "Linha Completa")
+    resultados_tree = ttk.Treeview(frame_resultados, columns=columns, show='headings')
+
+    for col in columns:
+        resultados_tree.heading(col, text=col)
+        if col == "Linha Completa":
+            resultados_tree.column(col, width=300)
+        elif col == "Trecho":
+            resultados_tree.column(col, width=200)
+        else:
+            resultados_tree.column(col, width=100)
+
+    # Adicionar uma scrollbar vertical
+    scrollbar = ttk.Scrollbar(frame_resultados, orient="vertical", command=resultados_tree.yview)
+    resultados_tree.configure(yscroll=scrollbar.set)
+    scrollbar.pack(side="right", fill="y")
+
+    resultados_tree.pack(fill="both", expand=True)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    criar_interface()
