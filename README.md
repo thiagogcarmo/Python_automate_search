@@ -2,6 +2,8 @@
 Utilização de Regex; Loops, bibliotecas
 versão final com esboço de interface gráfica
 
+
+
 Explicação Detalhada do Código 
 
 **1 - Importações Necessárias:**
@@ -71,6 +73,7 @@ Após a pesquisa, você pode salvar os resultados clicando no botão "Salvar Res
 
 **F - Limpar Resultados:**
 Se desejar limpar os resultados exibidos na Treeview, clique no botão "Limpar Resultados".
+
 Melhorias e Personalizações Adicionais
 I. Progress Bar:
 Para melhorar a experiência do usuário, você pode adicionar uma barra de progresso que indique o andamento da pesquisa. Isso pode ser feito utilizando o widget ttk.Progressbar e atualizando-o conforme a pesquisa avança.
